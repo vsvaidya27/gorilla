@@ -3,12 +3,6 @@ name: BFCL Data Format Check
 on:
   pull_request:
     branches: [ main ]
-    paths:
-      - 'berkeley-function-call-leaderboard/data/**'
-
-permissions:
-  contents: read
-  pull-requests: write
 
 jobs:
   check-data-format:
@@ -32,8 +26,13 @@ jobs:
           cat > validate_data.py << 'EOF'
           import json
           import sys
+          import os
           from jsonschema import validate
           from glob import glob
+          
+          # Print current working directory and list files for debugging
+          print(f"Current working directory: {os.getcwd()}")
+          print("Contents of current directory:", os.listdir())
           
           schema = {
               "type": "object",
@@ -67,20 +66,30 @@ jobs:
           }
 
           def validate_file(filepath):
+              print(f"Validating file: {filepath}")  # Debug print
               with open(filepath, 'r') as f:
-                  for line in f:
+                  for line_num, line in enumerate(f, 1):
                       try:
                           data = json.loads(line.strip())
                           validate(instance=data, schema=schema)
                       except Exception as e:
-                          print(f"Error in file {filepath}:")
+                          print(f"Error in file {filepath} at line {line_num}:")
                           print(f"Line content: {line.strip()}")
                           print(f"Error: {str(e)}")
                           return False
               return True
 
+          # Find all multi-turn files
+          pattern = "berkeley-function-call-leaderboard/data/*multi_turn*.json"
+          files = glob(pattern)
+          print(f"Found files matching pattern '{pattern}': {files}")  # Debug print
+          
+          if not files:
+              print("No files found! Check the path and pattern.")
+              sys.exit(1)
+
           success = True
-          for filepath in glob("berkeley-function-call-leaderboard/data/*multi_turn*.json"):
+          for filepath in files:
               if not validate_file(filepath):
                   success = False
 
@@ -117,4 +126,4 @@ jobs:
 
       - name: Fail if validation failed
         if: steps.validate.outcome != 'success'
-        run: exit 1 
+        run: exit 1
